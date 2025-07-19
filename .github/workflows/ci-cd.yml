@@ -64,7 +64,6 @@ jobs:
     needs: build
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository | lower }}
     outputs:
       image_tag: ${{ steps.set-tag.outputs.image_tag }}
     steps:
@@ -86,18 +85,22 @@ jobs:
       - id: set-tag
         run: echo "image_tag=sha-${GITHUB_SHA}" >> $GITHUB_OUTPUT
 
+      - name: Set Lowercase Repo Name
+        id: set-lowercase-repo
+        run: echo "lowercase_repo=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
       - name: Build Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: false
           load: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.set-tag.outputs.image_tag }}
+          tags: ${{ env.REGISTRY }}/${{ steps.set-lowercase-repo.outputs.lowercase_repo }}:${{ steps.set-tag.outputs.image_tag }}
 
       - name: Run Trivy Vulnerability Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.set-tag.outputs.image_tag }}
+          image-ref: ${{ env.REGISTRY }}/${{ steps.set-lowercase-repo.outputs.lowercase_repo }}:${{ steps.set-tag.outputs.image_tag }}
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
@@ -109,15 +112,13 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.set-tag.outputs.image_tag }}
+          tags: ${{ env.REGISTRY }}/${{ steps.set-lowercase-repo.outputs.lowercase_repo }}:${{ steps.set-tag.outputs.image_tag }}
 
   update-k8s:
     name: Update Kubernetes Deployment
     runs-on: ubuntu-latest
     needs: docker
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    env:
-      REPO: ${{ github.repository | lower }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -127,12 +128,16 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
+      - name: Set Lowercase Repo Name for K8s Update
+        id: set-lowercase-repo-k8s
+        run: echo "lowercase_repo=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
       - name: Update deployment.yaml with new image
         env:
           REGISTRY: ghcr.io
           IMAGE_TAG: ${{ needs.docker.outputs.image_tag }}
         run: |
-          IMAGE="$REGISTRY/$REPO:$IMAGE_TAG"
+          IMAGE="$REGISTRY/${{ steps.set-lowercase-repo-k8s.outputs.lowercase_repo }}:$IMAGE_TAG"
           sed -i "s|image: .*|image: $IMAGE|" kubernetes/deployment.yaml
           echo "Updated image to: $IMAGE"
 

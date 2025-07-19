@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: tic-tac-toe
-        image: ghcr.io/codeartisanaksahy/tiktaktoe-demo:v1
+        image: ghcr.io/codeartisanaksahy/my-node-app:sha-4a3a9cdd00e2191177838274512695c867d9371f
         imagePullPolicy: Always
         ports:
         - containerPort: 80
